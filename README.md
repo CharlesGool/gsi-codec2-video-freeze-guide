@@ -2,7 +2,7 @@
 
 **简体中文** | [English](doc/en/README.md) | [Español](doc/es/README.md)
 
-在旧 vendor (HIDL Codec2) 上运行新 GSI 时, 视频声音继续, 画面定格; 本项目说明如何排查, 定位和修复.
+高通 HIDL Codec2 vendor (如 Android 14 原厂 vendor) 上刷视频时声音继续, 画面定格, 拖进度条才恢复; 本项目说明两个独立原因的排查和修复: Android 17 GSI 的 libgui 切换 Surface 时清零 generation, 以及高通解码器申请输出缓冲超时后放弃重试, 与占满的输入槽死锁 (与 GSI 无关).
 
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-orange)](LICENSE)
 
@@ -21,8 +21,8 @@
 ## 简介
 
 - [调试教程](doc/debug-guide.md): 按"确认问题, 抓日志, 定位原因, 热补丁验证, 做成持久补丁, 刷机复查"的顺序, 说明两个独立原因的排查和修复方法:
-  - 原因 A: Android 17 `libgui` 的 `Surface::disconnect` 清零 generation, HIDL Codec2 切换 Surface 时缓冲迁移全部失败.
-  - 原因 B: vendor 解码器申请输出缓冲超时后放弃重试, 与占满的输入槽形成死锁; 与框架版本无关.
+  - 原因 A: Android 17 `libgui` 的 `Surface::disconnect` 清零 generation, HIDL Codec2 切换 Surface 时缓冲迁移全部失败. 只出现在 Android 17 system 上, 不限于 Pixel 提取的 GSI; 播放中切换全屏或复用播放器时触发.
+  - 原因 B: 高通解码器申请输出缓冲超时后放弃重试, 与占满的输入槽形成死锁. 是 vendor 自身的行为, 与 GSI 和框架版本无关 (Android 15 GSI 上同样出现); 预加载下一个视频的播放器 (如 X 用的 ExoPlayer) 刷视频时触发, 是最常见的情况.
 - [TB321FU 排查记录](doc/research.md): 教程所用案例的原始记录, 包括 logcat 证据链, 反汇编与 AOSP 源码对照, uprobe 跟踪和验证数据.
 
 案例是拯救者 Y700 三代 (TB321FU, 高通 SM8650, Android 14 vendor) 上的 Pixel Android 17 GSI, 修复后已在真机验证. 补丁实现见 [tb321fu-video-freeze-patch](https://github.com/CharlesGool/tb321fu-video-freeze-patch).

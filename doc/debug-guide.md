@@ -1,24 +1,29 @@
 ---
 name: debug-guide
-description: 在 HIDL Codec2 vendor 上运行新 GSI 时视频声音继续, 画面定格的排查和修复方法
+description: 高通 HIDL Codec2 vendor 上视频声音继续, 画面定格的两个原因的排查和修复方法
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   lang: "zh-CN"
 ---
 
 # 调试教程
 
-本文说明在旧 vendor (HIDL Codec2) 上运行新 GSI 时, 播放视频出现"声音继续, 画面定格, 拖进度条恢复"的排查和修复方法. 案例是拯救者 Y700 三代 (TB321FU, 高通 SM8650, Android 14 vendor) 刷 Pixel 提取的 Android 17 GSI, 原始记录见 [TB321FU 排查记录](research.md), 补丁实现见 [tb321fu-video-freeze-patch](https://github.com/CharlesGool/tb321fu-video-freeze-patch).
+本文说明在高通 HIDL Codec2 vendor 上播放视频出现"声音继续, 画面定格, 拖进度条恢复"的排查和修复方法. 案例是拯救者 Y700 三代 (TB321FU, 高通 SM8650, Android 14 vendor) 刷 Pixel 提取的 Android 17 GSI, 原始记录见 [TB321FU 排查记录](research.md), 补丁实现见 [tb321fu-video-freeze-patch](https://github.com/CharlesGool/tb321fu-video-freeze-patch).
 
 同一现象在案例中有两个独立原因, 修好其中一个不会让现象消失. 本文按"确认问题, 抓证据, 定位原因, 热补丁验证, 做成持久补丁, 刷机复查"的顺序写.
 
 ## 1. 确认问题类型
 
-满足下面全部条件时, 本文适用:
+共同现象: 视频画面停在某一帧, 声音继续播放; 拖动进度条或重新打开后恢复. 拖进度条会 flush 并重建解码器的缓冲池, 能恢复说明卡在缓冲区而不是数据源.
 
-- 视频画面停在某一帧, 声音继续播放; 拖动进度条或重新打开后恢复. 拖进度条会 flush 并重建解码器的缓冲池, 能恢复说明卡在缓冲区而不是数据源.
-- vendor 的 Codec2 HAL 是 HIDL (`android.hardware.media.c2@1.x`). 高通 Android 14 及更早的 vendor 一般是 `vendor.qti.media.c2@1.0-service`.
-- system 是比 vendor 新的 GSI.
+两个原因的适用条件不同, 一台设备可能同时有两个:
+
+| | 原因 A: Surface generation 被清零 | 原因 B: vendor 解码器放弃申请输出缓冲 |
+| --- | --- | --- |
+| system | Android 17 (`libgui` 的 `Surface::disconnect` 会清零 generation; Android 15 和 16 没有) | 与框架版本无关 (Android 14 和 17 框架里相关的 `CCodecBufferChannel` 代码一致); 案例中 Android 15 和 17 GSI 都出现 |
+| vendor | Codec2 HAL 是 HIDL (`android.hardware.media.c2@1.x`), 且客户端走 Surface 包装的缓冲迁移路径 (案例中由 read-only flag `wb_media_migration` 打开, Pixel 镜像中为开启) | 高通 `libqcodec2_v4l2codec.so` 解码器 (案例为 Android 14 vendor 的 `vendor.qti.media.c2@1.0-service`) |
+| 范围 | 不限于 Pixel 提取的 GSI; 其他 Android 17 GSI 是否开启该路径未验证. 使用 AIDL Codec2 的原机 (如 Pixel) 不受影响 | 与 GSI 无关, 是 vendor 自身的行为; 同一 vendor 的原厂系统是否出现未验证 |
+| 触发 | 播放中切换输出 Surface: 内嵌和全屏切换, 复用播放器 | 播放器预加载下一个视频 (如 ExoPlayer), 停留 1 秒以上再滑过去 |
 
 查看 HAL 类型 (HIDL 服务出现在 `lshal`, AIDL 服务出现在 `service list`):
 

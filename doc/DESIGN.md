@@ -26,7 +26,7 @@ metadata:
 
 ## 设计目标
 
-- [x] 说明在 HIDL Codec2 vendor 上运行新 GSI 时视频声音继续, 画面定格的排查, 定位和修复方法, 不依赖具体设备.
+- [x] 说明高通 HIDL Codec2 vendor 上视频声音继续, 画面定格的两个原因 (Android 17 libgui 的 generation 清零, 高通解码器放弃申请输出缓冲) 的排查, 定位和修复方法, 不依赖具体设备.
 - [x] 保留一个完整案例 (TB321FU) 的原始记录作为证据.
 - 非目标: 提供可直接使用的补丁. 补丁在 [tb321fu-video-freeze-patch](https://github.com/CharlesGool/tb321fu-video-freeze-patch).
 
